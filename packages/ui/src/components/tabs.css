@@ -135,7 +135,8 @@
     }
   }
 
-  #review-panel &[data-variant="normal"][data-orientation="horizontal"] {
+  #review-panel &[data-variant="normal"][data-orientation="horizontal"],
+  #browser-panel &[data-variant="normal"][data-orientation="horizontal"] {
     background-color: var(--background-stronger);
 
     [data-slot="tabs-list"] {

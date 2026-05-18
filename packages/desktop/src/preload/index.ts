@@ -66,6 +66,9 @@ const api: ElectronAPI = {
   checkUpdate: () => ipcRenderer.invoke("check-update"),
   installUpdate: () => ipcRenderer.invoke("install-update"),
   setBackgroundColor: (color: string) => ipcRenderer.invoke("set-background-color", color),
+  scanDevServers: (ports) => ipcRenderer.invoke("scan-dev-servers", ports),
+  clearBrowserCookies: () => ipcRenderer.invoke("clear-browser-cookies"),
+  clearBrowserCache: () => ipcRenderer.invoke("clear-browser-cache"),
 }
 
 contextBridge.exposeInMainWorld("api", api)

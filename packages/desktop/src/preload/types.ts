@@ -19,6 +19,13 @@ export type WindowConfig = {
   updaterEnabled: boolean
 }
 
+export type DevServer = {
+  port: number
+  url: string
+  title: string
+  status: number | null
+}
+
 export type ElectronAPI = {
   killSidecar: () => Promise<void>
   installCli: () => Promise<string>
@@ -76,4 +83,7 @@ export type ElectronAPI = {
   checkUpdate: () => Promise<{ updateAvailable: boolean; version?: string }>
   installUpdate: () => Promise<void>
   setBackgroundColor: (color: string) => Promise<void>
+  scanDevServers: (ports: number[]) => Promise<DevServer[]>
+  clearBrowserCookies: () => Promise<void>
+  clearBrowserCache: () => Promise<void>
 }

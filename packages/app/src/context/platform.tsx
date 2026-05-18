@@ -8,6 +8,7 @@ type OpenDirectoryPickerOptions = { title?: string; multiple?: boolean }
 type OpenFilePickerOptions = { title?: string; multiple?: boolean; accept?: string[]; extensions?: string[] }
 type SaveFilePickerOptions = { title?: string; defaultPath?: string }
 type UpdateInfo = { updateAvailable: boolean; version?: string }
+export type DevServer = { port: number; url: string; title: string; status: number | null }
 
 export type Platform = {
   /** Platform discriminator */
@@ -87,6 +88,15 @@ export type Platform = {
 
   /** Read image from clipboard (desktop only) */
   readClipboardImage?(): Promise<File | null>
+
+  /** Scan localhost ports for running dev servers (desktop only) */
+  scanDevServers?(ports: number[]): Promise<DevServer[]>
+
+  /** Clear browser side-panel cookies (desktop only) */
+  clearBrowserCookies?(): Promise<void>
+
+  /** Clear browser side-panel HTTP cache (desktop only) */
+  clearBrowserCache?(): Promise<void>
 }
 
 export type DisplayBackend = "auto" | "wayland"

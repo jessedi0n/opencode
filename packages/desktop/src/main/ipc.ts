@@ -1,5 +1,6 @@
 import { execFile } from "node:child_process"
-import { BrowserWindow, Notification, app, clipboard, dialog, ipcMain, shell } from "electron"
+import { createConnection } from "node:net"
+import { BrowserWindow, Notification, app, clipboard, dialog, ipcMain, session, shell } from "electron"
 import type { IpcMainEvent, IpcMainInvokeEvent } from "electron"
 
 import type {
@@ -40,6 +41,25 @@ type Deps = {
   setBackgroundColor: (color: string) => void
 }
 
+type DevServer = {
+  port: number
+  url: string
+  title: string
+  status: number | null
+}
+
+type ProbeResult = DevServer | "ignored" | null
+
+const devServerTitle = (html: string, port: number) =>
+  (html.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1] ?? "")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/\s+/g, " ")
+    .trim() || `localhost:${port}`
+
 export function registerIpcHandlers(deps: Deps) {
   ipcMain.handle("kill-sidecar", () => deps.killSidecar())
   ipcMain.handle("await-initialization", (event: IpcMainInvokeEvent) => {
@@ -69,6 +89,68 @@ export function registerIpcHandlers(deps: Deps) {
   ipcMain.handle("check-update", () => deps.checkUpdate())
   ipcMain.handle("install-update", () => deps.installUpdate())
   ipcMain.handle("set-background-color", (_event: IpcMainInvokeEvent, color: string) => deps.setBackgroundColor(color))
+  ipcMain.handle("clear-browser-cookies", () =>
+    session.fromPartition("persist:opencode-browser").clearStorageData({ storages: ["cookies"] }),
+  )
+  ipcMain.handle("clear-browser-cache", () => session.fromPartition("persist:opencode-browser").clearCache())
+  ipcMain.handle("scan-dev-servers", async (_event: IpcMainInvokeEvent, ports: number[]) => {
+    const HOSTS = ["localhost", "127.0.0.1", "::1"] as const
+    const SCAN_TIMEOUT = 1500
+    const displayURL = (port: number) => `http://localhost:${port}`
+
+    const probe = (port: number, host: (typeof HOSTS)[number]) => {
+      const controller = new AbortController()
+      const timeout = setTimeout(() => controller.abort(), SCAN_TIMEOUT)
+      const url = `http://${host === "::1" ? "[::1]" : host}:${port}`
+
+      return fetch(url, { redirect: "follow", signal: controller.signal })
+        .then(async (response): Promise<ProbeResult> => {
+          if (response.headers.get("server")?.toLowerCase().includes("airtunes")) return "ignored"
+          const html = response.headers.get("content-type")?.includes("text/html")
+            ? await response.text().catch(() => "")
+            : ""
+          return {
+            port,
+            url: displayURL(port),
+            title: devServerTitle(html, port),
+            status: response.status,
+          }
+        })
+        .catch((): ProbeResult => null)
+        .finally(() => clearTimeout(timeout))
+    }
+
+    const checkPort = (port: number, host: (typeof HOSTS)[number]) =>
+      new Promise<DevServer | null>((resolve) => {
+        const socket = createConnection(port, host)
+        socket.setTimeout(SCAN_TIMEOUT)
+        socket.on("connect", () => {
+          socket.destroy()
+          resolve({
+            port,
+            url: displayURL(port),
+            title: `localhost:${port}`,
+            status: null,
+          })
+        })
+        socket.on("error", () => resolve(null))
+        socket.on("timeout", () => {
+          socket.destroy()
+          resolve(null)
+        })
+      })
+
+    const results = await Promise.all(
+      ports.map(async (port) => {
+        const probes = await Promise.all(HOSTS.map((host) => probe(port, host)))
+        if (probes.includes("ignored")) return
+        const http = probes.find((server): server is DevServer => !!server)
+        if (http) return http
+        return (await Promise.all(HOSTS.map((host) => checkPort(port, host)))).find((server) => server)
+      }),
+    )
+    return results.filter((server): server is DevServer => !!server)
+  })
   ipcMain.handle("store-get", (_event: IpcMainInvokeEvent, name: string, key: string) => {
     try {
       const store = getStore(name)

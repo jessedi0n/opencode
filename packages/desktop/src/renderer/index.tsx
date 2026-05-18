@@ -266,6 +266,12 @@ const createPlatform = (): Platform => {
         type: "image/png",
       })
     },
+
+    scanDevServers: (ports) => window.api.scanDevServers(ports),
+
+    clearBrowserCookies: () => window.api.clearBrowserCookies(),
+
+    clearBrowserCache: () => window.api.clearBrowserCache(),
   }
 }
 

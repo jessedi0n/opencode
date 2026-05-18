@@ -158,6 +158,7 @@ export function SessionHeader() {
   const tree = createMemo(() => !isDesktopBeta || settings.general.showFileTree())
   const term = createMemo(() => !isDesktopBeta || settings.general.showTerminal())
   const status = createMemo(() => !isDesktopBeta || settings.general.showStatus())
+  const browser = createMemo(() => platform.platform === "desktop")
 
   const [exists, setExists] = createStore<Partial<Record<OpenApp, boolean>>>({
     finder: true,
@@ -426,6 +427,23 @@ export function SessionHeader() {
                 </div>
               </Show>
               <div class="flex items-center gap-1">
+                <Show when={browser()}>
+                  <Tooltip placement="bottom" value={language.t("command.browser.open")}>
+                    <Button
+                      variant="ghost"
+                      class="titlebar-icon w-8 h-6 p-0 box-border shrink-0"
+                      onClick={() => {
+                        if (!layout.browser.opened()) layout.fileTree.close()
+                        layout.browser.toggle()
+                      }}
+                      aria-label={language.t("command.browser.open")}
+                      aria-expanded={layout.browser.opened()}
+                      aria-controls="browser-panel"
+                    >
+                      <Icon size="small" name="globe" />
+                    </Button>
+                  </Tooltip>
+                </Show>
                 <Show when={status()}>
                   <Tooltip placement="bottom" value={language.t("status.popover.trigger")}>
                     <StatusPopover />
@@ -474,7 +492,10 @@ export function SessionHeader() {
                       <Button
                         variant="ghost"
                         class="titlebar-icon w-8 h-6 p-0 box-border"
-                        onClick={() => layout.fileTree.toggle()}
+                        onClick={() => {
+                          if (!layout.fileTree.opened()) layout.browser.close()
+                          layout.fileTree.toggle()
+                        }}
                         aria-label={language.t("command.fileTree.toggle")}
                         aria-expanded={layout.fileTree.opened()}
                         aria-controls="file-tree-panel"

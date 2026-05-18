@@ -26,6 +26,7 @@ import { createFileTabListSync } from "@/pages/session/file-tab-scroll"
 import { FileTabContent } from "@/pages/session/file-tabs"
 import { createOpenSessionFileTab, createSessionTabs, getTabReorderIndex, type Sizing } from "@/pages/session/helpers"
 import { setSessionHandoff } from "@/pages/session/handoff"
+import { BrowserPanel } from "@/pages/session/browser-panel"
 import { useSessionLayout } from "@/pages/session/session-layout"
 
 export function SessionSidePanel(props: {
@@ -60,15 +61,18 @@ export function SessionSidePanel(props: {
   )
 
   const reviewOpen = createMemo(() => isDesktop() && view().reviewPanel.opened())
-  const fileOpen = createMemo(() => isDesktop() && shown() && layout.fileTree.opened())
-  const open = createMemo(() => reviewOpen() || fileOpen())
+  const browserOpen = createMemo(() => isDesktop() && platform.platform === "desktop" && layout.browser.opened())
+  const fileOpen = createMemo(() => isDesktop() && shown() && layout.fileTree.opened() && !browserOpen())
+  const open = createMemo(() => reviewOpen() || fileOpen() || browserOpen())
   const reviewTab = createMemo(() => isDesktop())
   const panelWidth = createMemo(() => {
     if (!open()) return "0px"
     if (reviewOpen()) return `calc(100% - ${layout.session.width()}px)`
+    if (browserOpen()) return `${layout.browser.width()}px`
     return `${layout.fileTree.width()}px`
   })
   const treeWidth = createMemo(() => (fileOpen() ? `${layout.fileTree.width()}px` : "0px"))
+  const browserWidth = createMemo(() => (browserOpen() ? `${layout.browser.width()}px` : "0px"))
 
   const diffFiles = createMemo(() => props.diffs().map((d) => d.file))
   const kinds = createMemo(() => {
@@ -446,6 +450,42 @@ export function SessionSidePanel(props: {
               </Show>
             </div>
           </Show>
+
+          <div
+            id="browser-panel"
+            aria-label={language.t("browser.panel.title")}
+            aria-hidden={!browserOpen()}
+            inert={!browserOpen()}
+            class="relative min-w-0 h-full shrink-0 overflow-hidden"
+            classList={{
+              "pointer-events-none": !browserOpen(),
+              "transition-[width] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] will-change-[width] motion-reduce:transition-none":
+                !props.size.active(),
+            }}
+            style={{ width: browserWidth() }}
+          >
+            <div
+              class="h-full flex flex-col overflow-hidden border-l border-border-weaker-base bg-background-base"
+              aria-hidden={!browserOpen()}
+            >
+              <BrowserPanel />
+            </div>
+            <Show when={browserOpen()}>
+              <div onPointerDown={() => props.size.start()}>
+                <ResizeHandle
+                  direction="horizontal"
+                  edge="start"
+                  size={layout.browser.width()}
+                  min={360}
+                  max={720}
+                  onResize={(width) => {
+                    props.size.touch()
+                    layout.browser.resize(width)
+                  }}
+                />
+              </div>
+            </Show>
+          </div>
         </div>
       </aside>
     </Show>

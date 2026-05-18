@@ -1,5 +1,5 @@
 import windowState from "electron-window-state"
-import { app, BrowserWindow, net, nativeImage, nativeTheme, protocol } from "electron"
+import { app, BrowserWindow, net, nativeImage, nativeTheme, protocol, shell } from "electron"
 import { dirname, isAbsolute, join, relative, resolve } from "node:path"
 import { fileURLToPath, pathToFileURL } from "node:url"
 import type { TitlebarTheme } from "../preload/types"
@@ -9,6 +9,7 @@ const rendererRoot = join(root, "../renderer")
 const rendererProtocol = "oc"
 const rendererHost = "renderer"
 const clipboardWritePermission = "clipboard-sanitized-write"
+const browserPartition = "persist:opencode-browser"
 
 protocol.registerSchemesAsPrivileged([
   {
@@ -105,10 +106,12 @@ export function createMainWindow() {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
+      webviewTag: true,
     },
   })
 
   allowClipboardWrite(win)
+  allowBrowserWebview(win)
 
   win.webContents.session.webRequest.onBeforeSendHeaders((details, callback) => {
     const { requestHeaders } = details
@@ -219,6 +222,42 @@ function isTrustedRendererUrl(value?: string) {
   const devUrl = process.env.ELECTRON_RENDERER_URL
   if (!devUrl || !URL.canParse(devUrl)) return false
   return url.origin === new URL(devUrl).origin
+}
+
+function isHttpUrl(value: string) {
+  if (!URL.canParse(value)) return false
+  const url = new URL(value)
+  return url.protocol === "http:" || url.protocol === "https:"
+}
+
+function isBrowserUrl(value: string) {
+  return value === "about:blank" || isHttpUrl(value)
+}
+
+function allowBrowserWebview(win: BrowserWindow) {
+  win.webContents.on("will-attach-webview", (event, webPreferences, params) => {
+    if (params.partition !== browserPartition) {
+      event.preventDefault()
+      return
+    }
+
+    delete webPreferences.preload
+    webPreferences.nodeIntegration = false
+    webPreferences.contextIsolation = true
+    webPreferences.sandbox = true
+    webPreferences.partition = browserPartition
+  })
+
+  win.webContents.on("did-attach-webview", (_event, contents) => {
+    contents.setWindowOpenHandler((details) => {
+      if (isHttpUrl(details.url)) void shell.openExternal(details.url)
+      return { action: "deny" }
+    })
+    contents.on("will-navigate", (event, target) => {
+      if (isBrowserUrl(target)) return
+      event.preventDefault()
+    })
+  })
 }
 
 function wireZoom(win: BrowserWindow) {
